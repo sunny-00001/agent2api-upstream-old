@@ -85,7 +85,7 @@ export const ACCOUNT_COLUMNS: AccountColumn[] = [
   // 两份包同刻到期时两列各自在组内重复，是同一份包的两面，不是冗余。
   {
     key: 'creditExpiry', label: t('最近到期'),
-    title: t('所有积分包里**最先作废**的那一份什么时候到期；逐份明细见「余额」格里的积分明细'),
+    title: t('所有积分包里最先作废的那一份什么时候到期；逐份明细见「余额」格里的积分明细'),
     align: 'center', legacyAlign: 'left',
   },
   {
@@ -98,6 +98,30 @@ export const ACCOUNT_COLUMNS: AccountColumn[] = [
   { key: 'usage', label: t('余额'), align: 'center', legacyAlign: 'left' },
   { key: 'actions', label: t('操作'), align: 'right' },
 ]
+
+/**
+ * 可排序的列（点表头排序的白名单；表头的按钮、页面的守卫、store 读回的校验都用它）。
+ *
+ * 放在这份文件而不是 accounts-sort：它是**列的属性**（哪些列有可比值），与比较器
+ * 怎么取值无关；而 `accounts-store` 读回存盘里的排序时要校验「列还认识吗」，
+ * store 不该为一条校验去 import 比较器模块（那边要读 domain / credit-detail，
+ * 依赖会绕回 store 自己头上）。
+ *
+ * 不给的三列：勾选列没有值（它那一格是个复选框）、操作列装的是按钮、「顺序」列见下。
+ *
+ * **「顺序」列不排序**：它显示的是**组内位次**（每一家从 `#1` 起，见 accounts-page 的
+ * `rankMap`），而「组内第几位」不是一个能用来排**全表**的键 —— 组与组的先后由分组带的
+ * 顺位表达、组内先后由拖拽把手改。早先它挂着按钮，但取值读的是另一份口径（全队列位次
+ * `seatOf`），于是「点升序屏幕不动、点降序只部分反转」，且排序写回队列后这个矛盾会真的
+ * 挪动队列 —— 故撤掉入口（这张表同步移除，与表头保持一致）。
+ *
+ * 「最近到期」与「最近到期积分」都在表——两列各管一个维度：一个管「什么时候作废」、
+ * 一个管「作废前还剩多少」（不是面额，也不是账号总余额 —— 那是「余额」列）。
+ * 它们的读数取自**同一份**「最先作废的份」，所以积分列排出来的次序只在该份之间可比。
+ */
+export const SORTABLE_COLUMNS: ReadonlySet<string> = new Set([
+  'account', 'proxy', 'connections', 'status', 'limits', 'expiry', 'creditExpiry', 'creditLeft', 'usage',
+])
 
 /* ─── 列宽 ─────────────────────────────────── */
 

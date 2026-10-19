@@ -317,7 +317,7 @@ export function ScopeRail({ collapsed, onToggleCollapse }: {
   }
 
   return (
-    // 类名 `.acct-rail*` 全在下游的 css/page-accounts-rail.css（展开 / 收起两种形态都在那边）；
+    // 类名 `.acct-rail*` 全在 css/page-accounts-rail.css（展开 / 收起两种形态都在那边）；
     // 只有 `.rail-scroll` / `.rail-label` / `.rail-empty` 是复用模型管理页左栏的通用件
     // ——账号页的「账号设置弹窗」左栏早就在复用同一套（见 page-accounts.css）。
     <aside className='acct-rail' id='acct-scope-rail'
@@ -424,15 +424,22 @@ function rateMapOf(view: { models?: ManageModel[] } | null | undefined): RateMap
 
 /* ─── 状态徽章 ─────────────────────────────────── */
 
-/** 队列状态 → 徽章文案与色调（state 取值见后端 `routing::PlanEntry.state`） */
+/**
+ * 队列状态 → 徽章文案与色调（state 取值见后端 `routing::PlanEntry.state`）。
+ *
+ * 文案在这里就调 `t()`（模块级求值，与 `ACCOUNT_COLUMNS` 同一先例）：语言切换走整页
+ * reload，模块常量不需要在渲染期重算；反过来，把字面量留到渲染点再 `t(meta.label)`
+ * 会让词典扫描器（`i18n/scan.mjs`）认不出这些键 —— 它只认 `t` 调用的字符串字面量首参，
+ * 动态传参的调用只进 warning 清单，等于这七个词永远不会进各语言词典。
+ */
 const STATE_META: Record<string, { label: string; cls: string }> = {
-  usable: { label: '可用', cls: 'bg-success-soft text-success' },
-  tried: { label: '本轮已试', cls: 'bg-muted text-muted-foreground' },
-  disabled: { label: '已禁用', cls: 'bg-muted text-muted-foreground' },
-  cooldown: { label: '限流冷却', cls: 'bg-warning-soft text-warning' },
-  concurrency: { label: '并发已满', cls: 'bg-muted text-muted-foreground' },
-  limiter: { label: '限制器拦下', cls: 'bg-warning-soft text-warning' },
-  'no-credentials': { label: '无凭证', cls: 'bg-destructive-soft text-destructive' },
+  usable: { label: t('可用'), cls: 'bg-success-soft text-success' },
+  tried: { label: t('本轮已试'), cls: 'bg-muted text-muted-foreground' },
+  disabled: { label: t('已禁用'), cls: 'bg-muted text-muted-foreground' },
+  cooldown: { label: t('限流冷却'), cls: 'bg-warning-soft text-warning' },
+  concurrency: { label: t('并发已满'), cls: 'bg-muted text-muted-foreground' },
+  limiter: { label: t('限制器拦下'), cls: 'bg-warning-soft text-warning' },
+  'no-credentials': { label: t('无凭证'), cls: 'bg-destructive-soft text-destructive' },
 }
 
 /**
@@ -448,11 +455,12 @@ export function stateRank(state: string | undefined): number {
 
 export function StateBadge({ state, reason }: { state?: string; reason?: string }) {
   const key = String(state || '')
+  // 未知状态原样显示（后端新增取值时界面上看得见它本来的样子，而不是「—」）
   const meta = STATE_META[key] || { label: key || '—', cls: 'bg-muted text-muted-foreground' }
   return (
     <span className={cn('inline-flex rounded px-1.5 py-0.5 text-[11px] leading-4 whitespace-nowrap', meta.cls)}
       {...(reason ? { title: reason } : {})}>
-      {t(meta.label)}
+      {meta.label}
     </span>
   )
 }

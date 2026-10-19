@@ -25,6 +25,7 @@
  */
 
 import { shared, type AccountRecord, type AccountsSnapshot, type ClashSnapshot } from './accounts-shared'
+import { SORTABLE_COLUMNS } from './accounts-columns'
 import {
   accountGroups, byPriorityOrder, filterCounts, matchesFilter, positionMap, providerSummaries,
   visibleAccounts, type AccountFilter, type AccountGroup, type TokenUsageLookup, type UsageLookup,
@@ -128,6 +129,11 @@ function loadNamesHidden(): boolean {
 /**
  * 读回表头排序。
  *
+ * `key` 必须是可排序的列（`SORTABLE_COLUMNS`）—— 存盘里出现认不出的列（比如列被
+ * 撤了排序、或旧版本存过「顺序」列）时整条丢弃：留着它，比较器取不到值、每一行
+ * 都是 `null`，整表会按尾键「悄悄重排」，而表头没有任何一列显示箭头 —— 用户面对
+ * 的是一个既看不出排过序、又回不到队列序的中间态，不如当作没排。
+ *
  * `scope` 只认 group / flat 两个值（存盘里出现过第三个值时退回 group 而不是丢掉整条
  * 排序）：`flat` 会打散厂商分组，是个更重的手法 —— 认不出就按轻的那一档走。
  */
@@ -135,7 +141,7 @@ function loadSort(): AccountSort | null {
   try {
     const raw = JSON.parse(localStorage.getItem(SORT_KEY) || 'null') as Partial<AccountSort> | null
     const key = String(raw?.key || '')
-    if (!key) return null
+    if (!SORTABLE_COLUMNS.has(key)) return null
     return {
       key,
       dir: raw?.dir === 'desc' ? 'desc' : 'asc',

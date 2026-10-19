@@ -213,7 +213,13 @@ function AccountsPage() {
   /** 作用域：`''` = 全局账号表；否则是**模型名** —— 行集合与行序都换成该模型的调度队列 */
   const scheduleScope = useScheduleScope()
   const sched = useScheduleQueue(scheduleScope)
-  const sort = accountSort()
+  /** 全局作用域的排序（模型作用域恒 `null`）
+   *
+   *  排序状态存在 store 里、不分作用域 —— 在全局表点了表头再切进模型作用域时，
+   *  若不这样掐断，`shown` 会按那份比较器重排模型队列：屏幕行序 ≠ 「顺序」列的
+   *  位次 ≠ 转发真正走的顺序，三个读数互相打脸。模型作用域是**只读投影**，
+   *  那一屏的行序只能是后端给的队列序（表头因此也不显示排序箭头 —— 它没在排）。 */
+  const sort = scheduleScope ? null : accountSort()
   /** 整表排序（打散分组按一条排）。组内排序则保留厂商分段 */
   const flatSort = Boolean(sort && sort.scope === 'flat')
   // groups = 要渲染的（当前筛选下一条都看不见的组不留空壳）；allGroups = 全部组，
@@ -642,6 +648,9 @@ function AccountsPage() {
    */
   const scopeRef = React.useRef(scheduleScope)
   React.useEffect(() => { scopeRef.current = scheduleScope })
+  /** 整表排序的 ref（与 `scopeRef` 同一手法：`onDrop` 的闭包只绑一次，锁判据要经 ref 读最新值） */
+  const flatSortRef = React.useRef(flatSort)
+  React.useEffect(() => { flatSortRef.current = flatSort })
   /** 拖拽模块的处理器（绑定一次、读最新值，见下面的 effect） */
   const dragHandlers = React.useRef<{
     isLocked: (kind: 'group' | 'row') => boolean
@@ -676,6 +685,11 @@ function AccountsPage() {
     }
     const group = current.find(item => item.provider === drop.provider)
     if (!group) return
+    // 兜底守卫（与上面的 scopeRef 同一手法）：整表排序下一张 tbody 混着所有家的行，
+    // `drop.index` 数的是「全表第几行」，而这里换算用的是**这一家自己的**可见行数组 ——
+    // 两把尺子对不上，错插的位置会真的写进全局队列。锁已挡住（见 isLocked），
+    // 这条防的是「将来有人改了锁的判据」
+    if (flatSortRef.current) return
     const from = group.members.findIndex(account => account.id === drop.accountId)
     if (from < 0) return
     const moved = group.members[from]
@@ -704,10 +718,17 @@ function AccountsPage() {
   // 每次渲染都会变，若把它们做进依赖数组，每变一次就往容器上再挂一份监听。
   React.useEffect(() => {
     dragHandlers.current = {
-      // 组顺位：`groupLocked`（筛选 / 分页 / 模型域）；组内顺位：只有模型域锁
-      // （筛选 / 分页下组内落点可按可见行换算回全量，照拖）
-      isLocked: kind => (kind === 'group' ? groupLocked : Boolean(scheduleScope)),
-      lockReasonOf: kind => (kind === 'group' ? lockReason : t('切回全局账号表')),
+      // 组顺位：`groupLocked`（筛选 / 分页 / 模型域）；
+      // 组内顺位：模型域锁，**整表排序时也锁** —— 那时一张 tbody 混着所有家的行，
+      // 拖拽模块数出来的落点下标是「全表第几行」，而 `onDrop` 拿它去换算的是
+      // **这一家自己的**可见行数组（`renderedRows`）：两把尺子，`to===from` 的
+      // 防呆也因此失效，错插的位置会真的写回全局队列（且屏幕显示还是 flat 序，
+      // 刷新后才露出队列里被挪错的位置）。组内档不锁：每段仍是一家一个 tbody，
+      // 落点与换算同一把尺。
+      isLocked: kind => (kind === 'group' ? groupLocked : Boolean(scheduleScope) || flatSort),
+      lockReasonOf: kind => (kind === 'group'
+        ? lockReason
+        : scheduleScope ? t('切回全局账号表') : t('取消排序或切回组内档')),
       onDrop,
     }
   })
